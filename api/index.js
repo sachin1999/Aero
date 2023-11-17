@@ -60,7 +60,6 @@ app.use(cors(
     {
     credentials: true,
     origin : 'http://localhost:5173',
-    method : ['GET', 'POST', 'PUT']
     }
 ));
 
@@ -68,12 +67,12 @@ app.use(cors(
 
 
 //get request
-app.get('/test' ,(req,res) => {
+app.get('/api/test' ,(req,res) => {
     dbConnect();
     res.json("test ok")
 })
 //post request for registration
-app.post('/register', async (req,res) => {
+app.post('/api/register', async (req,res) => {
     dbConnect();
     const {name,email,password} = req.body;
    try {
@@ -89,7 +88,7 @@ app.post('/register', async (req,res) => {
    }
 });
 //post requset for login
-app.post('/login', async (req,res) => {
+app.post('/api/login', async (req,res) => {
     dbConnect();
     const {email,password} = req.body;
     const userDoc = await User.findOne({email});
@@ -116,7 +115,7 @@ app.post('/login', async (req,res) => {
 });
  
 //get request after login
-app.get('/profile', (req,res) => {
+app.get('/api/profile', (req,res) => {
     dbConnect();
         // res.json(req.cookies)
         const {token} = req.cookies;
@@ -132,12 +131,12 @@ app.get('/profile', (req,res) => {
         }
 })
 
-app.post('/logout', (req,res) => {
+app.post('/api/logout', (req,res) => {
     res.cookie('token', '', { expires: new Date(0) }).json({ message: 'Logout successful' });
     res.end();
 })
 
-app.post('/upload-by-link', async (req,res)=> {
+app.post('/api/upload-by-link', async (req,res)=> {
     dbConnect();
     const {link} = req.body;
     if(!link){
@@ -153,8 +152,8 @@ app.post('/upload-by-link', async (req,res)=> {
     const url = await uploadToS3('/tmp/' +newName, newName, mime.lookup('/tmp/' +newName))
     res.json(url);    
 }) 
-const photosMiddleware = multer({dest:'/tmp'})
-app.post('/uploads',photosMiddleware.array('photos', 100), async (req,res)=> {
+// const photosMiddleware = multer({dest:'/tmp'})photosMiddleware.array('photos', 100),
+app.post('/api/uploads', async (req,res)=> {
     const uploadedFiles = [];
     for(let i =0 ;i<req.files.length;i++){
         const {path,originalname,mimetype} = req.files[i];
@@ -166,7 +165,7 @@ app.post('/uploads',photosMiddleware.array('photos', 100), async (req,res)=> {
     res.json(uploadedFiles); 
     console.log({res})
 })
-app.post('/places', async (req,res)=> {
+app.post('/api/places', async (req,res)=> {
     dbConnect();
     const {token} = req.cookies;
     const {title,address,addedPhotos,
@@ -183,7 +182,7 @@ app.post('/places', async (req,res)=> {
         res.json(placeDoc);  
  })
 })
-app.get('/user-places', (req,res) => {
+app.get('/api/user-places', (req,res) => {
     dbConnect();
     const {token} = req.cookies;
     if (token) {
@@ -198,12 +197,12 @@ app.get('/user-places', (req,res) => {
     }
 
 })
-app.get('/places/:id', async (req,res)=>{
+app.get('/api/places/:id', async (req,res)=>{
     dbConnect();
     const {id} = req.params;
     res.json(await Place.findById(id));
 });
-app.put('/places', async (req,res)=> {
+app.put('/api/places', async (req,res)=> {
     dbConnect();
     const {token} = req.cookies;
     const {
@@ -223,11 +222,11 @@ app.put('/places', async (req,res)=> {
         }
     });
 })
-app.get('/places', async (req,res)=>{
+app.get('/api/places', async (req,res)=>{
     dbConnect();
     res.json( await Place.find() );
 })
-app.post('/bookings', async (req,res) =>{
+app.post('/api/bookings', async (req,res) =>{
     dbConnect();
     // const {token} = req.cookies;
     const userData = await getUserDataFromToken(req);
@@ -244,7 +243,7 @@ app.post('/bookings', async (req,res) =>{
         }) 
 });
 
-app.get('/bookings', async (req,res) => {
+app.get('/api/bookings', async (req,res) => {
     dbConnect();
     const userData = await getUserDataFromToken(req);
     res.json(await  Booking.find({user:userData.id}).populate('place'))
