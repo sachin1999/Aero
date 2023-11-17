@@ -152,8 +152,8 @@ app.post('/api/upload-by-link', async (req,res)=> {
     const url = await uploadToS3('/tmp/' +newName, newName, mime.lookup('/tmp/' +newName))
     res.json(url);    
 }) 
-// const photosMiddleware = multer({dest:'/tmp'})photosMiddleware.array('photos', 100),
-app.post('/api/uploads', async (req,res)=> {
+const photosMiddleware = multer({dest:'/tmp'})
+app.post('/api/uploads',photosMiddleware.array('photos', 100), async (req,res)=> {
     const uploadedFiles = [];
     for(let i =0 ;i<req.files.length;i++){
         const {path,originalname,mimetype} = req.files[i];
