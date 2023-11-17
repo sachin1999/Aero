@@ -37,40 +37,23 @@ const PlacesFormPage = () => {
         });
     },[id]);
     async function savePlace(ev){
-      ev.preventDefault();
-      const placeData = {
-                  title, address, addedPhotos,
-                  checkIn,checkOut, description, 
-                  perks, extraInfo, maxGuests,price
-      }
-      if(id) {
-        //update
-        const response = await fetch('http://localhost:4000/places', {
-          method: 'PUT',
-          body: JSON.stringify({id,...placeData}),
-          headers: {'Content-Type': 'application/json'},
-          credentials: 'include', 
-          
-      });
-      if(response.ok) {
-          alert ('Place Updated Successful');
+        ev.preventDefault();
+        const placeData = {
+          title, address, addedPhotos,
+          description, perks, extraInfo,
+          checkIn, checkOut, maxGuests, price,
+        };
+        if (id) {
+          // update
+          await axios.put('/places', {
+            id, ...placeData
+          });
           setRedirect(true);
-      }
-  }
-      else{
-        //new place
-        const response = await fetch('http://localhost:4000/places', {
-          method: 'POST',
-          body: JSON.stringify({...placeData}),
-          headers: {'Content-Type': 'application/json'},
-          credentials: 'include', 
-          
-      });
-      if(response.ok) {
-          alert ('Place Added Successful');
+        } else {
+          // new place
+          await axios.post('/places', placeData);
           setRedirect(true);
-      }
-  }
+        }
       }
       
    if(redirect){
