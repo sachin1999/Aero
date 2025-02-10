@@ -8,7 +8,7 @@ const bcrypt = require("bcryptjs")
 const fs = require('fs');
 const dbConnect = require("./config/database");
 const jwt = require('jsonwebtoken');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3')
+const { BlobServiceClient } = require('@azure/storage-blob');
 const cookieParser = require('cookie-parser');
 const imageDownloader = require('image-downloader');
 const Place = require('./models/PlaceModel');
@@ -26,26 +26,45 @@ const port = process.env.PORT || 5000 ;
 app.use('/uploads', express.static(path.join(__dirname +'/uploads')));
 app.use(express.json());
 app.use(cookieParser());
-async function uploadToS3(path, originalFilename, mimetype){
-    const client = new S3Client({
-        region: 'ap-south-1',
-        credentials: {
-            accessKeyId: process.env.S3_ACCESS_KEY,
-            secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
-        }
-    });
+// async function uploadToS3(path, originalFilename, mimetype){
+//     const client = new S3Client({
+//         region: 'ap-south-1',
+//         credentials: {
+//             accessKeyId: process.env.S3_ACCESS_KEY,
+//             secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+//         }
+//     });
+//     const parts = originalFilename.split('.');
+//     const ext = parts[parts.length - 1];
+//     const newFilename = Date.now() + '.' + ext;
+//     const data = await client.send(new PutObjectCommand({
+//         Bucket: bucket,
+//         Body: fs.readFileSync(path),
+//         Key: newFilename,
+//         ContentType: mimetype,
+//         ACL: 'public-read',
+//     }))
+//     return `https://${bucket}.s3.amazonaws.com/${newFilename}`;
+// }
+async function uploadToAzureBlob(filePath, originalFilename, mimetype) {
+    const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
+    const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
+    const containerName = process.env.AZURE_CONTAINER_NAME;
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+
     const parts = originalFilename.split('.');
     const ext = parts[parts.length - 1];
     const newFilename = Date.now() + '.' + ext;
-    const data = await client.send(new PutObjectCommand({
-        Bucket: bucket,
-        Body: fs.readFileSync(path),
-        Key: newFilename,
-        ContentType: mimetype,
-        ACL: 'public-read',
-    }))
-    return `https://${bucket}.s3.amazonaws.com/${newFilename}`;
+    const blockBlobClient = containerClient.getBlockBlobClient(newFilename);
+
+    const data = fs.readFileSync(filePath);
+    await blockBlobClient.upload(data, data.length, {
+        blobHTTPHeaders: { blobContentType: mimetype },
+    });
+
+    return blockBlobClient.url;
 }
+
 // get data from cookies
 function getUserDataFromToken(req) {
     return new Promise((resolve,reject)=> {
@@ -149,7 +168,7 @@ app.post('/api/upload-by-link', async (req,res)=> {
             dest: '/tmp/' +newName, //`${__dirname}/uploads/${newName}`,
 
     })
-    const url = await uploadToS3('/tmp/' +newName, newName, mime.lookup('/tmp/' +newName))
+    const url = await uploadToAzureBlob('/tmp/' + newName, newName, mime.lookup('/tmp/' + newName));
     res.json(url);    
 }) 
 const photosMiddleware = multer({dest:'/tmp'})
@@ -157,7 +176,7 @@ app.post('/api/uploads',photosMiddleware.array('photos', 100), async (req,res)=>
     const uploadedFiles = [];
     for(let i =0 ;i<req.files.length;i++){
         const {path,originalname,mimetype} = req.files[i];
-        const url = await uploadToS3(path,originalname, mimetype);
+        const url = await uploadToAzureBlob(path, originalname, mimetype);
         console.log({url});
         uploadedFiles.push(url);
         console.log(uploadedFiles);
