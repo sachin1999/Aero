@@ -8,7 +8,8 @@ const bcrypt = require("bcryptjs")
 const fs = require('fs');
 const dbConnect = require("./config/database");
 const jwt = require('jsonwebtoken');
-const { BlobServiceClient } = require('@azure/storage-blob');
+// const { BlobServiceClient } = require('@azure/storage-blob');
+const cloudinary = require('cloudinary').v2;
 const cookieParser = require('cookie-parser');
 const imageDownloader = require('image-downloader');
 const Place = require('./models/PlaceModel');
@@ -20,6 +21,13 @@ require("dotenv").config();
 const bcryptSalt = bcrypt.genSaltSync(10);
 const jwtSecret = "gjhgcvbvbcbcvvhjvhjvhjvh";
 const bucket = 'aero-booking';
+
+// Configure Cloudinary
+cloudinary.config({ 
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
+    api_key: process.env.CLOUDINARY_API_KEY, 
+    api_secret: process.env.CLOUDINARY_API_SECRET 
+  });
 
 const port = process.env.PORT || 5000 ;
 
@@ -46,23 +54,32 @@ app.use(cookieParser());
 //     }))
 //     return `https://${bucket}.s3.amazonaws.com/${newFilename}`;
 // }
-async function uploadToAzureBlob(filePath, originalFilename, mimetype) {
-    const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
-    const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
-    const containerName = process.env.AZURE_CONTAINER_NAME;
-    const containerClient = blobServiceClient.getContainerClient(containerName);
+// async function uploadToAzureBlob(filePath, originalFilename, mimetype) {
+//     const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
+//     const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
+//     const containerName = process.env.AZURE_CONTAINER_NAME;
+//     const containerClient = blobServiceClient.getContainerClient(containerName);
 
-    const parts = originalFilename.split('.');
-    const ext = parts[parts.length - 1];
-    const newFilename = Date.now() + '.' + ext;
-    const blockBlobClient = containerClient.getBlockBlobClient(newFilename);
+//     const parts = originalFilename.split('.');
+//     const ext = parts[parts.length - 1];
+//     const newFilename = Date.now() + '.' + ext;
+//     const blockBlobClient = containerClient.getBlockBlobClient(newFilename);
 
-    const data = fs.readFileSync(filePath);
-    await blockBlobClient.upload(data, data.length, {
-        blobHTTPHeaders: { blobContentType: mimetype },
-    });
+//     const data = fs.readFileSync(filePath);
+//     await blockBlobClient.upload(data, data.length, {
+//         blobHTTPHeaders: { blobContentType: mimetype },
+//     });
 
-    return blockBlobClient.url;
+//     return blockBlobClient.url;
+// }
+async function uploadToCloudinary(filePath) {
+    try {
+        const result = await cloudinary.uploader.upload(filePath);
+        return result.secure_url;
+    } catch (error) {
+        console.error('Upload error:', error);
+        throw error;
+    }
 }
 
 // get data from cookies
@@ -168,20 +185,18 @@ app.post('/api/upload-by-link', async (req,res)=> {
             dest: '/tmp/' +newName, //`${__dirname}/uploads/${newName}`,
 
     })
-    const url = await uploadToAzureBlob('/tmp/' + newName, newName, mime.lookup('/tmp/' + newName));
+    const url = await uploadToCloudinary('/tmp/' + newName);
     res.json(url);    
 }) 
 const photosMiddleware = multer({dest:'/tmp'})
 app.post('/api/uploads',photosMiddleware.array('photos', 100), async (req,res)=> {
     const uploadedFiles = [];
-    for(let i =0 ;i<req.files.length;i++){
-        const {path,originalname,mimetype} = req.files[i];
-        const url = await uploadToAzureBlob(path, originalname, mimetype);
-        console.log({url});
+    for(let i = 0; i < req.files.length; i++) {
+        const {path} = req.files[i];
+        const url = await uploadToCloudinary(path);
         uploadedFiles.push(url);
-        console.log(uploadedFiles);
     }
-    res.json(uploadedFiles); 
+    res.json(uploadedFiles);
     console.log({res})
 })
 app.post('/api/places', async (req,res)=> {
